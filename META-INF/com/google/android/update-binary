@@ -1,0 +1,128 @@
+#!/sbin/sh
+
+OUTFD="/proc/self/fd/$2"
+MNT_DIR="/mnt"
+TMP_DIR="/tmp"
+ZIP="$3"
+
+ui_print() {
+    echo "ui_print $1" > "$OUTFD"
+    echo "ui_print" > "$OUTFD"
+}
+
+set_con() {
+    chcon -h u:object_r:"$1":s0 "$2"
+    chcon u:object_r:"$1":s0 "$2"
+}
+
+set_perm() {
+    chmod "$1" "$2"
+}
+
+set_owner() {
+    chown "$1:$2" "$3"
+}
+
+unmount_all() {
+    umount /system || umount /mnt/system || true
+    umount /vendor || umount /mnt/vendor || true
+    umount /product || umount /mnt/product || true
+}
+
+mount_part() {
+    PART_DM="$BLK_PATH/$1$SLOT_SUFFIX"
+    PART_BLOCK=$(ls -l "$PART_DM" | sed 's/.*-> //')
+    mkdir -p "$2" || true
+    mount -o rw -t ext4 "$PART_BLOCK" "$2"
+}
+
+if [ $(getprop ro.product.device) != "rosemary" ]; then
+    ui_print " "
+    ui_print "Only for rosemary bro"
+    ui_print " "
+    exit 0
+fi
+
+ui_print " "
+ui_print "Dolby Pro Max"
+ui_print " "
+
+ui_print "Extracting files..."
+
+WORK_DIR="$TMP_DIR/dolby"
+mkdir -p "$WORK_DIR" || true
+cd "$WORK_DIR" || exit
+unzip -o "$ZIP"
+
+ui_print "Mounting partitions..."
+
+unmount_all
+
+BLK_PATH="/dev/block/mapper"
+CURRENTSLOT=$(getprop ro.boot.slot_suffix)
+if [ -n "$CURRENTSLOT" ]; then
+    if [ "$CURRENTSLOT" = "_a" ]; then
+        SLOT_SUFFIX="_a"
+    else
+        SLOT_SUFFIX="_b"
+    fi
+fi
+
+VENDOR_MNT="$MNT_DIR/vendor"
+PRODUCT_MNT="$MNT_DIR/product"
+
+mount_part vendor "$VENDOR_MNT"
+mount_part product "$PRODUCT_MNT"
+
+ui_print "Preparing files..."
+
+find . -type d | while read -r d; do
+    set_perm 0755 "$d"
+    set_owner root root "$d"
+done
+
+find . -type f | while read -r item; do
+    set_perm 0644 "$item"
+    set_owner root root "$item"
+    set_con vendor_file "$item"
+done
+
+find ./vendor/etc -type f | while read -r item; do
+    set_con vendor_configs_file "$item"
+done
+
+find ./vendor/bin -type f | while read -r item; do
+    set_owner root shell "$item"
+    set_perm 0755 "$item"
+done
+
+ui_print "Copying files..."
+
+# free some spaces, sorry GoogleNews
+rm -rf "$PRODUCT_MNT/data-app/GoogleNews/*" || true
+rm -rf "$VENDOR_MNT/etc/voicecommand/*" || true
+
+# TODO: find media configs regex = lazy
+cp --preserve=a -r ./vendor/* "$VENDOR_MNT"
+
+ui_print "Patching files..."
+
+# nuke precompiled sepolicy & load our custom rules instead
+rm "$VENDOR_MNT/etc/selinux/precompiled_sepolicy" || true
+cat ./patch/selinux/vendor_file_contexts >> "$VENDOR_MNT/etc/selinux/vendor_file_contexts"
+cat ./patch/selinux/vendor_hwservice_contexts >> "$VENDOR_MNT/etc/selinux/vendor_hwservice_contexts"
+cat ./patch/selinux/vendor_sepolicy.cil >> "$VENDOR_MNT/etc/selinux/vendor_sepolicy.cil"
+
+# add dolby properties.
+# forgot where to put this. put everywhere coz why not
+cat ./patch/build.prop >> "$PRODUCT_MNT/etc/build.prop"
+cat ./patch/build.prop >> "$VENDOR_MNT/build.prop"
+
+# restorecon
+set_con vendorcodec_exec "$VENDOR_MNT/bin/hw/dolbycodec2"
+set_con hal_dms_default_exec "$VENDOR_MNT/bin/hw/vendor.dolby.hardware.dms@2.0-service"
+
+unmount_all
+ui_print "Done!"
+ui_print " "
+exit 0

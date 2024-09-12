@@ -1,0 +1,36 @@
+# Dolby Pro Max
+persist.vendor.audio.misound.disable=true
+ro.vendor.audio.dolby.dax.support=true
+ro.vendor.audio.hifi=true
+ro.vendor.audio.sfx.earadj=true
+ro.vendor.audio.scenario.support=true
+ro.vendor.audio.sfx.scenario=true
+ro.vendor.audio.surround.support=true
+ro.vendor.audio.vocal.support=true
+ro.vendor.audio.voice.change.support=true
+ro.vendor.audio.voice.change.youme.support=true
+ro.vendor.audio.game.mode=true
+ro.vendor.audio.sos=true
+ro.vendor.audio.soundtrigger.mtk.pangaea=1
+ro.vendor.audio.soundtrigger.xiaomievent=1
+ro.vendor.audio.soundtrigger.wakeupword=5
+ro.vendor.audio.soundtrigger.mtk.split_training=1
+ro.vendor.dolby.dax.version=DAX3_3.6.0.12_r1
+ro.vendor.audio.dolby.dax.support=true
+ro.vendor.audio.5k=true
+ro.vendor.audio.feature.spatial=0
+ro.audio.monitorRotation=true
+ro.vendor.audio.dolby.vision.support=true
+ro.vendor.display.dolbyvision.support=true
+debug.config.media.video.dolby_vision_suports=true
+
+# PQ Pro Max
+vendor.debug.pq.dshp.en=0
+vendor.debug.pq.shp.en=0
+persist.vendor.sys.pq.iso.shp.en=0
+persist.vendor.sys.pq.ultrares.en=0
+persist.vendor.sys.pq.shp.idx=0
+persist.vendor.sys.pq.shp.strength=0
+persist.vendor.sys.pq.shp.step=0
+persist.vendor.sys.pq.dispshp.strength=0
+persist.vendor.sys.pq.ultrares.strength=0
