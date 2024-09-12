@@ -36,11 +36,9 @@ mount_part() {
     mount -o rw -t ext4 "$PART_BLOCK" "$2"
 }
 
-if [ $(getprop ro.product.device) != "rosemary" ]; then
-    ui_print " "
-    ui_print "Only for rosemary bro"
-    ui_print " "
-    exit 0
+# TODO: support more partitions
+if [ "$(getprop ro.boot.dynamic_partitions)" != "true" ]; then
+   exit 0
 fi
 
 ui_print " "
@@ -74,6 +72,30 @@ PRODUCT_MNT="$MNT_DIR/product"
 mount_part vendor "$VENDOR_MNT"
 mount_part product "$PRODUCT_MNT"
 
+ui_print "Check partition size..."
+
+# free some spaces, kick any possible bloat
+rm -rf "$PRODUCT_MNT/data-app/GoogleNews/*" || true
+rm -rf "$PRODUCT_MNT/data-app/Podcasts/*" || true
+rm -rf "$PRODUCT_MNT/data-app/Meet/*" || true
+rm -rf "$PRODUCT_MNT/data-app/POCOCOMMUNITY_OVERSEA/*" || true
+rm -rf "$PRODUCT_MNT/data-app/GlobalWPSLITE/*" || true
+rm -rf "$PRODUCT_MNT/data-app/wps-lite/*" || true
+rm -rf "$VENDOR_MNT/etc/voicecommand/*" || true
+
+SPACE_NEEDED=$(( $(du -s ./vendor | awk '{print $1}') + 1024 ))
+DISK_FREE=$(df -k $VENDOR_MNT | tail -n1 | awk '{print $4}')
+if [[ $DISK_FREE -lt $SPACE_NEEDED ]]; then
+    ui_print "No space left: vendor"
+    exit 0
+fi;
+
+DISK_FREE=$(df -k $PRODUCT_MNT | tail -n1 | awk '{print $4}')
+if [[ $DISK_FREE -lt 4096 ]]; then
+    ui_print "No space left: product"
+    exit 0
+fi;
+
 ui_print "Preparing files..."
 
 find . -type d | while read -r d; do
@@ -98,14 +120,30 @@ done
 
 ui_print "Copying files..."
 
-# free some spaces, sorry GoogleNews
-rm -rf "$PRODUCT_MNT/data-app/GoogleNews/*" || true
-rm -rf "$VENDOR_MNT/etc/voicecommand/*" || true
-
-# TODO: find media configs regex = lazy
 cp --preserve=a -r ./vendor/* "$VENDOR_MNT"
 
 ui_print "Patching files..."
+
+# patch media configs
+sed -i '/effect name="misoundfx"/ {
+    r ./patch/media/audio_effects.xml
+    a
+}' "$VENDOR_MNT/etc/audio_effects.xml"
+
+sed -i '/library name="misoundfx"/ {
+    r ./patch/media/audio_libraries.xml
+    a
+}' "$VENDOR_MNT/etc/audio_effects.xml"
+
+sed -i '/<\/Settings>/ {
+    r ./patch/media/media_codecs.xml
+    a
+}' "$VENDOR_MNT/etc/media_codecs.xml"
+
+sed -i '/<Decoders>/ {
+    r ./patch/media/media_codecs_c2.xml
+    a
+}' "$VENDOR_MNT/etc/media_codecs_c2.xml"
 
 # nuke precompiled sepolicy & load our custom rules instead
 rm "$VENDOR_MNT/etc/selinux/precompiled_sepolicy" || true
